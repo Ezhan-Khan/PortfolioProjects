@@ -1,0 +1,253 @@
+---
+title: 'Codecademy_R_Capstone_Project: ''Effect of Content Released on Streaming Services'''
+author: "Ezhan A Khan"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Introduction:  
+This Project will investigate whether new content released on a streaming service has a significant effect on the 'value' of that streaming service. Stock Prices Data will be used as a way of reflecting the 'value' of the company.
+
+For Example, does the releasing a popular title, like 'Stranger Things' have a noticeable effect on Stock Price of Netflix?
+
+Further investigation will be done to see whether there is a Correlation between Stock Prices of Different Streaming Services. 
+
+For Example, if Netflix has a Rise in Stock Price, does this also affect Disney Plus or Amazon Prime?
+
+## 1. Importing Our 'Stock Price' Data
+As usual, will need 'tidyverse' package and 'dplyr' for data manipulation. 
+Also require 'quantmod'(quantitative financial modelling) Package. This lets us import 'FINANICAL Time-Series' (xts object) Data EASILY into R, which will be necessary to access STOCK PRICES for our Streaming Service Companies.
+(Note - could also obtain this data from 'Yahoo! Finance' by downloading CSV Files, but using 'quantmod' is MUCH more CONVENIENT!)
+
+```{r echo = T, results = 'hide'}
+library(quantmod)
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+#Obtain Appropriate Stock Price Data for 'Netflix','AT&T (HBO)' 'Disney' and 'Amazon':
+getSymbols(c("NFLX", "T", "DIS", "AMZN"))
+```
+Inspecting first and last few rows of each Stock Price Time-Series Data (just to get better understanding of the data and the time-range which the data covers):
+```{r Inspecting each of the Time Series Data}
+#Netflix
+head(NFLX, n=3)
+tail(NFLX, n=3)
+#AT&T (HBO)
+head(T, n=3)
+tail(T, n=3)
+#Disney
+head(DIS, n=3)
+tail(DIS, n=3)
+#Amazon
+head(AMZN, n=3)
+tail(AMZN, n=3)
+
+```
+
+The Stock Prices Time-Series Data has been obtained for each company. 
+
+
+## Converting into a DataFrame:
+Now can CONVERT from 'xts object' into a 'DataFrame' for EACH. Only 'Adjusted' Stock Price is needed, since this is the most accurate indicator of stock value. Then can JOIN all into ONE DataFrame.
+(Note -  Could Create the Joined DataFrame in one step, but better to do separately for each of the time-series data, THEN join AFTERWARDS.)
+
+```{r Data Manipulation and Visualization}
+#Will first convert EACH 'xts object' TO a DataFrame:
+data1 <- as.data.frame(`NFLX`)
+data2 <- as.data.frame(`T`)
+data3 <- as.data.frame(`DIS`)
+data4 <- as.data.frame(`AMZN`)
+```
+
+
+```{r Data Manipulation and Visualization}
+#But, the 'Dates' for each stock price record are STILL given as 'Row Names' (i.e. Row INDEX). 
+head(rownames(data1))
+#So must CONVERT to an ACTUAL 'DataFrame COLUMN' for 'DATE' and REMOVE 'ROWNAMES' Index and Select 'Adjusted' Stock Price:
+data_1 <- data1 %>% 
+  mutate(dates = rownames(data1)) %>% 
+  select(dates, NFLX.Adjusted) 
+rownames(data_1) <- NULL
+head(data_1)
+
+#REPEAT this for OTHER Stock Prices:
+data_2 <- data2 %>% 
+  mutate(dates = rownames(data2)) %>% 
+  select(dates, T.Adjusted) 
+rownames(data_2) <- NULL
+head(data_2)  
+
+data_3 <- data3 %>% 
+  mutate(dates = rownames(data3)) %>% 
+  select(dates, DIS.Adjusted) 
+rownames(data_3) <- NULL
+head(data_3)  
+
+data_4 <- data4 %>% 
+  mutate(dates = rownames(data4)) %>% 
+  select(dates, AMZN.Adjusted) 
+rownames(data_4) <- NULL
+head(data_4)
+```
+
+
+```{r Data Manipulation and Visualization}
+#Now, can JOIN EACH Individual DataFrames TOGETHER:
+stocks_df <- data_1 %>% 
+  inner_join(data_2, by=('dates'='dates')) %>% 
+  inner_join(data_3, by=('dates'='dates')) %>% 
+  inner_join(data_4, by=('dates'='dates')) %>% 
+  rename(Date=dates,Netflix=NFLX.Adjusted,HBO=T.Adjusted, Disney=DIS.Adjusted,Amazon=AMZN.Adjusted )
+#Checking ALL ROWS have EACH been Joined:
+count(stocks_df)   #ALL rows - joined perfectly!
+head(stocks_df, n=5)
+```
+
+
+```{r Data Manipulation and Visualization}
+#CONVERT 'Dates' to 'Date' Data Type:
+stocks_df <- stocks_df %>% 
+  mutate(Date = as.Date(Date)) 
+head(stocks_df)
+
+#Quickly checking Each Variable for Missing Values:
+na_count <-sapply(stocks_df, function(x) sum(is.na(x)))   #'apply' our 'user-defined function' to 'EACH COLUMN' of 'students'!
+na_count       #NO MISSING VALUES!
+```
+
+(Here is the ALTERNATIVE WAY of JOINING Each of the Stock Price Data to Create 1 DataFrame):
+```{r Alternative way of Joining into 1 DataFrame}
+stocks1 <- data.frame("Date"=as.Date(row.names(as.data.frame(NFLX))), "Netflix"=NFLX$NFLX.Adjusted, "HBO"=T$T.Adjusted, "Disney"=DIS$DIS.Adjusted, "Amazon"=AMZN$AMZN.Adjusted )
+head(stocks1)
+#SAME Answer, just a DIFFERENT WAY!
+```
+
+## Plotting Stock Prices for Each Streaming Services:
+
+```{r Plotting Stock Prices}
+#Firstly, should RESHAPE the DATA to make it SIMPLER to PLOT. It will help if  'Company' of EACH Company are in ONE Column and 'related stocks' is in the OTHER Column: 
+gathered_stocks <- stocks_df %>% 
+  gather('Netflix', 'HBO', 'Disney', 'Amazon', key='Company', value = 'stock_value') 
+head(gathered_stocks)
+
+#Now, PLOTTING 'Stock Value' for EACH Company over Time:
+# -manually chose specific colors for each plot 
+# -Added a title and appropriately formatted the text labels and legend so it is all much clearer.
+stocks_plot <- ggplot(data=gathered_stocks, aes(x=Date, y=stock_value, group=Company)) +
+              geom_line(aes(color=Company), linewidth=0.9) +
+              scale_color_manual(values = c("darkorange", "darkred", "darkblue", "darkgreen")) +
+              labs(title = "Stock Prices of Streaming Services", y = "Stock Value") +   
+              theme(plot.title = element_text(size=14, face="bold"),
+                    axis.title.x = element_text(size=12, face="bold"), 
+                    axis.title.y = element_text(size=12, face="bold"),      
+                    axis.text.x = element_text(size=10, face="bold"), 
+                    axis.text.y = element_text(size=10, face="bold"),
+                    legend.text = element_text(face="bold"),
+                    legend.title = element_text(face="bold"))
+stocks_plot
+
+
+```
+
+## Descriptive Statistics
+
+Now, can calculate some Simple 'Descriptive Statistics' to get a better understanding of the numbers behind this visualization.
+
+```{r Descriptive Statistics}
+#Easy way to obtain QUICK SUMMARY STATISTICS for EACH Variable of DataFrame -  'summary()' function:
+summary(stocks_df)
+
+#What about the SPECIFIC DATE at which the 'Min' and 'Max' Stock Values occurred? Can Pipe and FILTER AT the MIN and MAX:
+min_stocks <- stocks_df %>% 
+  filter(Netflix == min(Netflix)|HBO == min(HBO)|Disney==min(Disney)|Amazon==min(Amazon))  
+max_stocks <- stocks_df %>% 
+  filter(Netflix == max(Netflix)|HBO == max(HBO)|Disney==max(Disney)|Amazon==max(Amazon))  
+#Now can see ALL DATES at which MINIMUM and MAXIMUM STOCKS occured, for EACH Company
+min_stocks
+max_stocks 
+
+```
+
+
+## Google Trends
+
+The 'Google Trends' Webpage is an excellent way to assess the popularity of particular 'keywords' (i.e. Google searches). This is especially useful to find change in 'interest' over 'time' or 'by region'. 
+
+In R, Google Trends Data can be obtained simply by using the 'gtrendsR' Package. Here will determine the relative 'popularity' (indicated by 'hits' variable, normalized between 0-100) of streaming service shows.
+
+
+```{r}
+install.packages("readr")
+install.packages("colorspace")
+install.packages("vctrs")
+install.packages("gtrendsR")
+install.packages('gtrendsR')
+library(gtrendsR)
+
+#Searching for Popular Shows from EACH of the Streaming Services:
+google_trends <- gtrends(keyword = c("mandalorian", "stranger things", "game of thrones", "the marvelous mrs maisel"))
+#'trends' is LIST Object of Dataframes: 
+names(google_trends)
+google_trends$interest_by_country
+#Side Note - IF Status Code is '429' = Too Many Requests sent. So must wait before sending another request!
+#(using 'gtrends' is essentially like an API HTTP Request)
+
+```
+
+Before visualizing the 'interest_over_time' date, should perform some data manipulation to ensure it is appropriate for plotting.
+
+```{r}
+#First, should CHECK 'interest_over_time' Dataframe Variables for any Missing Values:
+na_counts <-sapply(google_trends$interest_over_time, function(x) sum(is.na(x)))
+na_counts     #No Missing Values
+
+#Also, need to convert 'hits' to 'numeric' data type, since sometimes Dataframe values '<1' can result in 'hits' variable becoming 'categorical' instead of 'numerical' (i.e. must ensure it STAYS as 'numeric')
+#Also should convert 'date' variable from 'DATATIME' to just 'DATE' (do not need the 'time' element here)
+trends_over_time <- google_trends$interest_over_time %>% 
+  mutate(hits = as.numeric(hits), 
+         date = ymd(date)) 
+glimpse(trends_over_time) 
+
+#get message NAs introduced by Coercion. So must CONVERT NAs to '0'
+na_counts <-sapply(trends_over_time, function(x) sum(is.na(x)))
+na_counts     #have '252 missing values' for 'hits'
+
+#must REPLACE NA Values with '0' (using 'replace_na(column, new_value)'):
+trends_over_time <- trends_over_time %>% 
+  mutate(hits = replace_na(hits, 0))
+
+na_counts <-sapply(trends_over_time, function(x) sum(is.na(x)))
+na_counts     #'0 missing values' for 'hits' now!
+
+```
+Visualizing the data for 'interest_over_time' for each keyword on the same 'time-series plot' makes it much simpler to understanding these trends:
+
+```{r}
+trends_plot <- ggplot(data=trends_over_time) +
+                    geom_line(aes(x=date, y=hits, color=keyword), linewidth=0.9, size=1) +
+                    theme_minimal() +
+                    labs(title="Google Trend Data for Streaming Service Shows",
+                    caption = "Data obtained using 'gtrendsR' Package", y = "Hits (Normalized between 0 and 100)", x="Date")
+trends_plot
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
