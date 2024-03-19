@@ -174,7 +174,7 @@ ORDER BY 2 DESC;
 
 
 /* Now, can complile these Queries 
-   and their respective Results into a text document (Word),
+   and their respective Results into a document,
    to create a comprehensive report of this validation process
    (allows for reproducible analysis)
 */
